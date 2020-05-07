@@ -70,6 +70,7 @@ local devices_livebox_mac_adress = { -- MAC ADDRESS des périphériques à surve
                                         "P0:70:2Q:25:R9:8S",
                                     }
 
+local devicesOfflineTimeout = 2 -- Considéré comme réellement déconnecté au bout de x minutes de déconnexion
 
 -- Capteurs pour connexion xDSL seulement
 local SyncATM = nil -- Nom du capteur custom Synchro ATM down, nil si non utilisé
@@ -479,16 +480,23 @@ return {
                     for j=1,#LAN do
                         if(LAN[j]['DiscoverySource'] == "selflan")then
                             k=searchKey(LAN[j]['Children'],devices_livebox_mac_adress[i])
-                            if (k~=-1 and LAN[j]['Children'][k]['Active'])then
-                                domoticz.log('switch : '..LAN[j]['Children'][k]['Name'].." On", domoticz.LOG_INFO)
-                                if (domoticz.devices(LAN[j]['Children'][k]['Name']))then
-                                    domoticz.devices(LAN[j]['Children'][k]['Name']).switchOn().checkFirst()
-                                end
-                                break
-                            elseif (k~=-1 and LAN[j]['Children'][k]['Active']==false)then
-                                domoticz.log('switch : '..LAN[j]['Children'][k]['Name'].." Off", domoticz.LOG_INFO)
-                                if (domoticz.devices(LAN[j]['Children'][k]['Name']))then
-                                    domoticz.devices(LAN[j]['Children'][k]['Name']).switchOff().checkFirst()
+                            if ( k~=-1 ) then
+                                local lan_device = LAN[j]['Children'][k]
+                                local dz_device = domoticz.devices(lan_device['Name'])
+                                if ( dz_device ) then
+                                    if (lan_device['Active'])then
+                                        domoticz.log('switch : '..lan_device['Name'].." On", domoticz.LOG_INFO)
+                                        dz_device.switchOn().checkFirst()
+                                    elseif (LAN[j]['Children'][k]['Active']==false)then
+                                        local offline = true
+                                        if ( dz_device.active and dz_device.lastUpdate.minutesAgo <= devicesOfflineTimeout )  then
+                                            offline = false
+                                        end
+                                        if ( offline ) then
+                                            domoticz.log('switch : '..lan_device['Name'].." Off", domoticz.LOG_INFO)
+                                            dz_device.switchOff().checkFirst()
+                                        end
+                                    end
                                 end
                                 break
                             end
